@@ -1,0 +1,70 @@
+#!/bin/sh
+#
+echo="echo -e"
+retval=0
+printheader(){
+   clear
+   $echo "   __   ___                 _   _______  ___  ___      _             "
+   $echo "   \ \ / / |               | | | |  _  \ |  \/  |     | |            "
+   $echo "    \ V /| |__   _____  __ | |_| | | | | | .  . | __ _| | _____ _ __ "
+   $echo "    /   \| |_ \ / _ \ \/ / |  _  | | | | | |\/| |/ _' | |/ / _ \ '__|"
+   $echo "   / /^\ \ |_) | (_) >  <  | | | | |/ /  | |  | | (_| |   <  __/ |   "
+   $echo "   \/   \/_.__/ \___/_/\_\ \_| |_/___/   \_|  |_/\__,_|_|\_\___|_|\n\n\n"
+             }
+#
+#
+#
+while [ $retval -eq 0 ]; do
+   printheader
+   $echo "              You have the following options :\n\n"
+   $echo "           1) Clone existing Xbox HD\n"
+   $echo "           2) Quit\n"
+   $echo "              Make your choice [1-2] : \c"
+   read cmd
+   if [ $cmd -eq 1 ]; then
+      clear
+      printheader
+      $echo "             This will let you Clone an existing Xbox HD"
+      $echo "             onto a blank drive. Be carefull you get the devices"
+      $echo "             right or you could lose data..."
+      $echo "             I have found the following devices on your computer : \n"
+      dmesg | grep '^hd' > /tmp/devlist
+      HDA=`grep '^hda' /tmp/devlist | cut -d ':' -f 2 | head -n 1`
+      HDB=`grep '^hdb' /tmp/devlist | cut -d ':' -f 2 | head -n 1`
+      HDC=`grep '^hdc' /tmp/devlist | cut -d ':' -f 2 | head -n 1`
+      HDD=`grep '^hdd' /tmp/devlist | cut -d ':' -f 2 | head -n 1`
+      rm -f /tmp/devlist
+      $echo "             Primary Master   (/dev/hda) :$HDA"
+      $echo "             Pirmary Slave    (/dev/hdb) :$HDB"
+      $echo "             Secondary Master (/dev/hdc) :$HDC"
+      $echo "             Secondary Slave  (/dev/hdd) :$HDD"
+      $echo "\n             Enter the source drive [hda hdb hdc hdd] : \c"
+      read source
+      dchoice=""
+      for nn in hda hdb hdc hdd; do
+	      if [ "$nn" != "$source" ]; then
+		      dchoice="$dchoice $nn"
+	      fi
+      done
+      $echo "             Enter the destination drive [$dchoice] : \c"
+      read dest
+      $echo "             Ready to clone /dev/$source onto /dev/$dest"
+      $echo "             Continue [yes/no]? : \c"
+      read cmd
+      if [ "$cmd" = "yes" ]; then
+         $echo "             Executing : dd if=/dev/$source of=/dev/$dest bs=1024k"
+         $echo "             Go have a beer - this could take a while..."
+         dd if=/dev/$source of=/dev/$dest bs=1024k
+      fi
+      $echo "\n             All done !"
+      sleep 2
+   elif [ $cmd -eq 2 ]; then
+      $echo "\n\n             Goodbye!\n\n"
+      sleep 2
+      retval=1
+   else
+      $echo "\n             Invalid choice !\n"
+      sleep 2
+      clear
+   fi
+done

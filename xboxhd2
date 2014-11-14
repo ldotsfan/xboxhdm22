@@ -1,0 +1,152 @@
+#!/bin/sh
+#
+# Script for Making and recovering of an xbox HD
+# Uses the fatx kernel patches from xbox-linux.sourceforge.net
+# as well as the mkfs.fatx utility from xboxdumper.
+# mod by freaksworth"
+
+echo="echo -e"
+retval=0
+eeprom=0
+iso=0
+Epath=""
+mountpoint=""
+
+
+#
+clear
+printheader(){
+   clear
+   $echo "   __   ___                 _   _______  ___  ___      _             "
+   $echo "   \ \ / / |               | | | |  _  \ |  \/  |     | |            "
+   $echo "    \ V /| |__   _____  __ | |_| | | | | | .  . | __ _| | _____ _ __ "
+   $echo "    /   \| |_ \ / _ \ \/ / |  _  | | | | | |\/| |/ _' | |/ / _ \ '__|"
+   $echo "   / /^\ \ |_) | (_) >  <  | | | | |/ /  | |  | | (_| |   <  __/ |   "
+   $echo "   \/   \/_.__/ \___/_/\_\ \_| |_/___/   \_|  |_/\__,_|_|\_\___|_|\n\n\n"
+   }
+
+printheader
+for l in /mnt/sd??; do
+	if [ -d $l/hdm ]; then
+	 	$echo "	hdm directory found: $l/hdm"
+		iso=1
+		mountpoint=$l
+	fi
+		if [ -f $l/eeprom/eeprom.bin ]; then 	
+			$echo "	eeprom.bin found: $l/eeprom/eeprom.bin."
+			eeprom=1
+			Epath=$l/eeprom/eeprom.bin
+		fi
+
+done
+cdpath=$mountpoint
+
+	if [ "$iso" = "0" ]; then
+		$echo "	hdm directory not found. No xbox files available."
+	fi
+	if [ "$eeprom" = "0" ]; then
+		$echo "	eeprom.bin not found. No (un)locking possible."
+	fi
+
+	if [ "$iso" = "0" ] && [ "$eeprom" = "0" ]; then
+		$echo "	...exiting."
+		exit 1
+	else
+		$echo " \n        Do you wish to continue ? [yes/no] : \c"
+	fi
+
+	read cmd
+	if [ "$cmd" != "yes" ]; then
+      		exit 1
+	fi
+
+
+printheader
+$echo "        Please select your xbox drive :\n"
+$echo "        1) Primary   Master   : /dev/hda\n"
+$echo "        2) Primary   Slave    : /dev/hdb\n"
+$echo "        3) Secondary Master   : /dev/hdc\n"
+$echo "        4) Secondary Slave    : /dev/hdd\n"
+$echo "        5) Quit\n"
+$echo "        Enter Number ? [1-5]: \c"
+
+read cmd
+if [ "$cmd" -eq "1" ]; then
+      xboxpath="/dev/hda"
+elif [ "$cmd" -eq "2" ]; then
+      xboxpath="/dev/hdb"
+elif [ "$cmd" -eq "3" ]; then
+      xboxpath="/dev/hdc"
+elif [ "$cmd" -eq "4" ]; then
+      xboxpath="/dev/hdd"
+elif [ "$cmd" -eq "5" ]; then
+      exit 1
+else 	
+	exit 1
+fi
+
+
+
+while [ $retval -eq 0 ]; do
+   printheader
+   $echo "           You have the following options :\n\n"
+   $echo "           1) Unlock drive in $xboxpath\n"
+   $echo "           2) Activate xboxhdm Stage 2 on $xboxpath\n"
+   $echo "           3) Lock drive in $xboxpath\n"
+   $echo "           4) Quit\n"
+   $echo "              Make your choice [1-4] : \c"
+   read cmd
+	
+   #
+   #  Unlock drive
+   #
+   if [ $cmd -eq 1 ]; then
+	if [ $eeprom -eq 1 ]; then
+		$echo "\n	Are you sure to to unlock $xboxpath [yes/no]? : \c"
+      		read cmd
+      		if [ "$cmd" = "yes" ]; then
+			exec  /usr/local/bin/unlockhd -k $Epath $xboxpath
+		fi
+	else
+		$echo "		No eeprom.bin available. Press any key.\c"
+		read cmd
+      	fi
+   	
+   #
+   #  enter stage 2
+   #    
+   elif [ $cmd -eq 2 ]; then
+	if [ $iso -eq 1 ]; then
+		$echo "\n	Are you sure to start stage 2 on $xboxpath [yes/no]? : \c"
+      		read cmd
+      		if [ "$cmd" = "yes" ]; then
+			stick=${mountpoint/mnt/dev}
+			exec /usr/local/bin/qemu -hda $xboxpath -hdc ${stick/1/} -kernel $mountpoint/hdmboot/fatxImage -initrd $mountpoint/hdmboot/initrd.gz -append "load_ramdisk=1 prompt_ramdisk=0 ramdisk_size=24000 rw root=/dev/ram pci=biosirq"
+		fi	
+		#read cmd
+	else
+		$echo "		No linux.iso available. Press any key.\c"
+		read cmd
+      fi
+   
+   #
+   # lock drive
+   #
+   elif [ $cmd -eq 3 ]; then
+	if [ $eeprom -eq 1 ]; then
+		$echo "\n	Are you sure to to lock $xboxpath [yes/no]? : \c"
+      		read cmd
+      		if [ "$cmd" = "yes" ]; then
+			exec  /usr/local/bin/lockhd -k $Epath $xboxpath
+		fi
+	else
+		$echo "		No eeprom.bin available. Press any key.\c"
+		read cmd
+     	fi
+   #
+   # exit
+   #
+   elif [ $cmd -eq 4 ]; then
+	exit 1
+   fi
+done

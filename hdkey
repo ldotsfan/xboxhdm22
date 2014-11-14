@@ -1,0 +1,70 @@
+#!/bin/sh
+#
+# Script for mounting xboxhdm-linux CD and run hdkey_gen
+#
+retval=0
+Epath=nothing
+cd /
+echo="echo -e"
+#
+#
+/usr/bin/find-cd2 check
+CDDEV="`df | grep CD | cut -c 1-8`"
+if [ "$CDDEV" = "" ]; then
+   $echo "\n Linux CD not found! Insert it and try again...\n"
+   exit 1
+fi
+PMASTER=`detectpm | grep 'HDD Model' | cut -d ':' -f 2 | sed -e 's/ //g'`
+if [ "$PMASTER" = "" ]; then
+   $echo "\n No drive found on Primary Master! Shutdown, attach drive and try again...\n"
+   exit 1
+fi
+#
+clear
+if [ ! -f /CD/eeprom/eeprom.bin ]; then
+   $echo "\n\n           eeprom.bin not found on CDROM"
+   while [ $retval -eq 0 ]; do
+   $echo "           1. Look on floppy disk"
+   $echo "           2. Enter a different path manually"
+   $echo "           3. Exit"
+   $echo "           Choose an option [1-3] : \c"
+   read cmd
+   if [ $cmd -eq 1 ]; then
+      mkdir -p /mnt/floppy
+      $echo "           Insert floppy and push enter\c"
+      read cmd
+      mount -t vfat /dev/fd0 /mnt/floppy
+      if [ -f /mnt/floppy/eeprom.bin ]; then
+         retval=1
+         Epath=/mnt/floppy/eeprom.bin
+      fi
+   elif [ $cmd -eq 2 ]; then
+      $echo "           Enter path to eeprom and push enter : \c"
+      read path
+      if [  -f $path/eeprom.bin ]; then
+         retval=1
+         Epath=$path/eeprom.bin
+      fi
+   elif [ $cmd -eq 3 ]; then
+         retval=1
+         exit 1
+   else
+      $echo "\n           Invalid option...\n"
+      sleep 2
+      clear
+   fi
+   done
+else
+   Epath=/CD/eeprom/eeprom.bin
+fi
+#
+if [ "$Epath" != "nothing" ]; then
+   xinfo -a -f $Epath > hdkey.txt
+   grep "HDD Locking Password" hdkey.txt | awk '{print $5}' > hdpass.txt
+   dos2unix -d hdpass.txt
+   cat hdkey.txt
+   $echo "\nOutput saved to file hdkey.txt\n"
+else
+   $echo "\n  HDD password not generated!\n"
+fi
+umount /CD

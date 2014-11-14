@@ -1,0 +1,134 @@
+#!/bin/sh
+#
+# Script for locking xbox HDD
+# mof by freaksworth
+#
+echo="echo -e"
+retval=0
+eeprom=0
+pass=0
+pfile=0
+Epath=nothing
+device=nothing
+
+
+usage(){
+         $echo "\n  Lock a HDD for use with the Xbox console"
+         $echo "\n  Usage:    lockhd [-a] [-p] [-f] <device>"
+         $echo "            -a  Automatically get password from Eeprom"
+  	  $echo "		-k <eeprompath> use Eeprom from eeprompath"
+         $echo "            -p  Type in password on commandline"
+         $echo "            -f  Get password from file only containing the password\n\n"
+         $echo "            <device> IDE device to lock\n\n"
+       }
+
+
+if [ "$1" = "" ]; then
+  usage
+  exit 1
+fi
+while [ -n "`echo $1 | grep '-'`" ]; do
+       case $1 in
+          -a ) eeprom=1 device=$2;;
+	   -k ) eeprom=1 Epath2=$2 device=$3;;
+          -p ) pass=1 Epath=$2 device=$3
+               shift;;
+          -f ) pfile=1 Epath=$2 device=$3
+               shift;;
+          * ) usage; exit 1;;
+       esac
+       shift
+done
+#
+#
+$echo $Epath2
+$echo "Working on $device\n\n"
+
+fcheck=`expr $eeprom + $pass`
+fcheck=`expr $fcheck + $pfile`
+if [ $fcheck -eq 0 ]; then
+   $echo "\nDont know how to get password ???\n"
+   exit 1
+elif [ $fcheck -gt 1 ]; then
+   $echo "\nMore than one password flag specified ?\n"
+   exit 1
+fi
+# set up password
+if [ $eeprom -eq 1 ]; then
+ #  if [ ! -f /mnt/sda/eeprom/eeprom.bin ]; then
+    if [ ! -f $Epath2 ]; then
+      $echo "\n\n           eeprom.bin not found"
+      while [ $retval -eq 0 ]; do
+      $echo "           1. Enter a different path manually"
+      $echo "           2. Exit"
+      $echo "           Choose an option [1-2] : \c"
+      read cmd
+      if [ $cmd -eq 1 ]; then
+         $echo "           Enter path to eeprom and push enter : \c"
+         read path
+         if [ -f $path/eeprom.bin ]; then
+            retval=1
+            Epath=$path/eeprom.bin
+         fi
+	 clear
+      elif [ $cmd -eq 2 ]; then
+            retval=1
+	    clear
+            exit 1
+      else
+         $echo "\n           Invalid option...\n"
+         sleep 2
+         clear
+      fi
+      done
+   else
+  #     Epath=/mnt/sda/eeprom/eeprom.bin
+	Epath=$Epath2
+   fi
+elif [ $pfile -eq 1 ]; then
+   if [ "$Epath" = "" ]; then
+      $echo "\nNo password file specified!\n"
+      exit 1
+   elif [ ! -f $Epath ]; then
+      $echo "\nSpecified password file does not exist!\n"
+      exit 1
+   else
+      temp=`cat $Epath | awk '{print $1}'`
+      Epath=$temp
+   fi
+elif [ $pass -eq 1 ]; then
+   if [ "$Epath" = "" ]; then
+      $echo "\nNo password specified!\n"
+      exit 1
+   fi
+fi
+PMASTER=`hdsecinfo $device | grep 'HDD Model' | cut -d ':' -f 2 | sed -e 's/ //g'`
+PMFROZEN=`hdsecinfo $device | grep 'Security frozen' | cut -d ':' -f 2 | sed -e 's/ //g'`
+if [ "$PMASTER" = "" ]; then
+   $echo "\n No drive found. Shutdown, attach drive and try again...\n"
+   exit 1
+fi
+if [ "$PMFROZEN" = "Yes" ]; then
+   $echo "\n Drive is frozen."
+   $echo "Cannot change the security status of a frozen drive!"
+   $echo "Try to disable 'automatic detection' on the primary"
+   $echo "ide channel in your PC BIOS and reboot.\n"
+   exit 1
+fi
+#
+clear
+#
+if [ "$Epath" != "nothing" ]; then
+   $echo "\n\n "
+   if [ $eeprom -eq 1 ]; then
+      hdtool -d $device -e $Epath -o LOCK
+   elif [ $pass -eq 1 -o $pfile -eq 1 ]; then
+      hdtool -d $device -p $Epath -o LOCK
+   fi
+   sleep 1
+   $echo "\nDetecting drive status...\n\n"
+   hdsecinfo $device
+else
+   $echo "\n  Error - could not get password.\n"
+fi
+
